@@ -1,0 +1,1 @@
+Repositório dos códigos da minha iniciação científica, desenvolvida entre novembro de 2025 e agosto de 2026, orientado pelos professores Wesley Angelino de Souza e Marcelo Favoretto Castoldi, da UTFPR campus Cornélio Procópio.
