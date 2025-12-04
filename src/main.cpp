@@ -42,13 +42,9 @@ void IRAM_ATTR Timer0_ISR(){
 }
 
 void IRAM_ATTR Timer1_ISR(){
-  xSemaphoreTakeFromISR(dadosRelevantes, &bloqueioStructDados);
+  bloqueioStructDados = pdFALSE;
+  vTaskNotifyGiveFromISR(dadosRelevantes, &bloqueioStructDados);
 
-  dados.eficaz = sqrtf(dados.tensao2 / dados.contador);
-  dados.media = dados.tensao / dados.contador;
-  dados.zerar();
-
-  xSemaphoreGiveFromISR(dadosRelevantes, &bloqueioStructDados);
   if(bloqueioStructDados == pdTRUE) portYIELD_FROM_ISR();
 }
 
@@ -74,25 +70,23 @@ void taskCore0(void* pvParameters){
 
       xSemaphoreGive(dadosRelevantes);
     }
-
-    if(cont == 255){
-      cont = 0;
-      xSemaphoreTake(bufferImpressao, 0);
-      memcpy(impressao, leitura, 256 * sizeof(float));
-      xSemaphoreGive(bufferImpressao);
-      xTaskNotifyGive(exibicaoDados);
-    }
   }
 }
 
 void taskCore1(void* pvParameters){
   while(1){
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    xSemaphoreTake(bufferImpressao, portMAX_DELAY);
+    xSemaphoreTake(dadosRelevantes, portMAX_DELAY);
 
-    for(int i = 0; i < 256; i++) Serial.println(impressao[i]);
+    dados.eficaz = sqrtf(dados.tensao2 / dados.contador);
+    dados.media = dados.tensao / dados.contador;
+    dados.zerar();
 
-    xSemaphoreGive(bufferImpressao);
+    Serial.printf("E = %.2f\n", dados.eficaz);
+    Serial.printf("M = %.2f\n", dados.media);
+    Serial.printf("P = %.2f\n", dados.pico);
+    
+    xSemaphoreGive(dadosRelevantes);
   }
 }
 
