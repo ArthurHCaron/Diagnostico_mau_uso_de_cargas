@@ -90,7 +90,7 @@ static void IRAM_ATTR Timer0_ISR(){
   if(taskCaptacaoDados == pdTRUE) portYIELD_FROM_ISR();
 }
 
-void IRAM_ATTR Timer1_ISR(){
+static void IRAM_ATTR Timer1_ISR(){
   taskExibicaoDadosRelevantes = pdFALSE;
   vTaskNotifyGiveFromISR(exibicaoDados, &taskExibicaoDadosRelevantes);
 
