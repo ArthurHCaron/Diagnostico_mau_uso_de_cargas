@@ -19,7 +19,7 @@ BaseType_t taskCaptacaoDados = pdFALSE,
            taskExibicaoDadosRelevantes = pdFALSE;
 SemaphoreHandle_t dadosRelevantes;
 
-static struct{
+volatile struct{
   float tensao,
         tensao2,
         pico,
@@ -101,10 +101,10 @@ static void taskCore0(void* pvParameters){
   const float offset = 1.66,
               kPropor = 921.113;
   int leituraRaw = 0;
-  float sumV = 0,
-        sumV2 = 0,
-        cont = 0,
-        leituraVolt = 0;
+  static float sumV = 0,
+               sumV2 = 0,
+               cont = 0,
+               leituraVolt = 0;
 
   while(1){
     ulTaskNotifyTake(taskCaptacaoDados, portMAX_DELAY);
