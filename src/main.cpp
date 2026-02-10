@@ -26,7 +26,6 @@ volatile struct{
         media,
         eficaz;
   int contador;
-  void (*zerar)(void);  
 } dados;
 
 void initDados(void);
@@ -42,7 +41,7 @@ void setup(){
   initDados();
 
   adc1_config_width(ADC_WIDTH_BIT_12);
-  adc1_config_channel_atten(ADC1_CHANNEL_1, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC1_CHANNEL_3, ADC_ATTEN_DB_11);
   tipo = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, ADC_VREF, &adc);
 
   dadosRelevantes = xSemaphoreCreateBinary();
@@ -104,26 +103,29 @@ static void taskCore0(void* pvParameters){
   static float sumV = 0,
                sumV2 = 0,
                cont = 0,
-               leituraVolt = 0;
+               leituraVolt = 0,
+               maior = 0;
 
   while(1){
     ulTaskNotifyTake(taskCaptacaoDados, portMAX_DELAY);
 
-    leituraRaw = adc1_get_raw(ADC1_CHANNEL_1);
+    leituraRaw = adc1_get_raw(ADC1_CHANNEL_3);
     leituraVolt = esp_adc_cal_raw_to_voltage(leituraRaw, &adc) / 1000.0;
     leituraVolt = kPropor * (leituraVolt - offset);
     sumV += leituraVolt;
     sumV2 += leituraVolt * leituraVolt;
     cont++;
+    if(abs(leituraVolt) > maior) maior = abs(leituraVolt);
 
     if(xSemaphoreTake(dadosRelevantes, 0) == pdPASS){
       dados.tensao2 += sumV2;
       dados.tensao += sumV;
       dados.contador += cont;
+      dados.pico = maior;
       sumV = 0;
       sumV2 = 0;
       cont = 0;
-
+      maior = 0; 
       xSemaphoreGive(dadosRelevantes);
     }
   }
@@ -136,7 +138,7 @@ static void taskCore1(void* pvParameters){
 
     dados.eficaz = sqrtf(dados.tensao2 / dados.contador);
     dados.media = dados.tensao / dados.contador;
-    dados.zerar();
+    zerar();
 
     Serial.printf("E = %.2f\n", dados.eficaz);
     Serial.printf("M = %.2f\n", dados.media);
@@ -153,7 +155,6 @@ void initDados(void){
   dados.media = 0;
   dados.eficaz = 0;
   dados.pico = 0;
-  dados.zerar = &zerar;
 }
 
 void zerar(void){
