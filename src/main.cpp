@@ -2,13 +2,13 @@
 #include <esp_adc_cal.h>
 #include <math.h>
 
-#define INP_PIN 36
+#define INP_PIN 4
+#define ADC_VREF 1100
+#define TIMER0_PRESCALE 20
+#define TIMER0_ALARM 520
+#define TIMER1_PRESCALE 60000
+#define TIMER1_ALARM 80000
 
-volatile bool flagLeitura = false,
-              flagPrint = true;
-int cont = 0;
-float leitura[256],
-      impressao[256];
 hw_timer_t *Timer0_Cfg = NULL,
            *Timer1_Cfg = NULL;
 esp_adc_cal_characteristics_t adc;
@@ -16,9 +16,8 @@ esp_adc_cal_value_t tipo;
 TaskHandle_t captacaoDados = NULL,
              exibicaoDados = NULL;
 BaseType_t taskCaptacaoDados = pdFALSE,
-           bloqueioStructDados = pdFALSE;
-SemaphoreHandle_t bufferImpressao,
-                  dadosRelevantes;
+           taskExibicaoDadosRelevantes = pdFALSE;
+SemaphoreHandle_t dadosRelevantes;
 
 volatile struct{
   float tensao,
@@ -27,74 +26,14 @@ volatile struct{
         media,
         eficaz;
   int contador;
-  void (*zerar)(void);  
 } dados;
 
 void initDados(void);
 void zerar(void);
-
-void IRAM_ATTR Timer0_ISR(){
-  taskCaptacaoDados = pdFALSE;
-
-  vTaskNotifyGiveFromISR(captacaoDados, &taskCaptacaoDados);
-
-  if(taskCaptacaoDados == pdTRUE) portYIELD_FROM_ISR();
-}
-
-void IRAM_ATTR Timer1_ISR(){
-  xSemaphoreTakeFromISR(dadosRelevantes, &bloqueioStructDados);
-
-  dados.eficaz = sqrtf(dados.tensao2 / dados.contador);
-  dados.media = dados.tensao / dados.contador;
-  dados.zerar();
-
-  xSemaphoreGiveFromISR(dadosRelevantes, &bloqueioStructDados);
-  if(bloqueioStructDados == pdTRUE) portYIELD_FROM_ISR();
-}
-
-void taskCore0(void* pvParameters){
-  const double offset = 1.66,
-               kPropor = 921.113;
-  int leituraRaw = 0;
-  double leituraVolt = 0;
-
-  while(1){
-    ulTaskNotifyTake(taskCaptacaoDados, portMAX_DELAY);
-
-    leituraRaw = adc1_get_raw(ADC1_CHANNEL_0);
-    leituraVolt = esp_adc_cal_raw_to_voltage(leituraRaw, &adc) / 1000.0;
-    leituraVolt = kPropor * (leituraVolt - offset);
-    leitura[cont] = leituraVolt;
-    cont++;
-    
-    if(xSemaphoreTake(dadosRelevantes, 0) == pdPASS){
-      dados.tensao2 += leituraVolt * leituraVolt;
-      dados.tensao += leituraVolt;
-      dados.contador++;
-
-      xSemaphoreGive(dadosRelevantes);
-    }
-
-    if(cont == 255){
-      cont = 0;
-      xSemaphoreTake(bufferImpressao, 0);
-      memcpy(impressao, leitura, 256 * sizeof(float));
-      xSemaphoreGive(bufferImpressao);
-      xTaskNotifyGive(exibicaoDados);
-    }
-  }
-}
-
-void taskCore1(void* pvParameters){
-  while(1){
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    xSemaphoreTake(bufferImpressao, portMAX_DELAY);
-
-    for(int i = 0; i < 256; i++) Serial.println(impressao[i]);
-
-    xSemaphoreGive(bufferImpressao);
-  }
-}
+static void IRAM_ATTR Timer0_ISR();
+static void IRAM_ATTR Timer1_ISR();
+static void taskCore0(void* pvParameters);
+static void taskCore1(void* pvParameters);
 
 void setup(){
   Serial.begin(921600);
@@ -102,11 +41,8 @@ void setup(){
   initDados();
 
   adc1_config_width(ADC_WIDTH_BIT_12);
-  adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_11);
-  tipo = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, &adc);
-
-  bufferImpressao = xSemaphoreCreateBinary();
-  xSemaphoreGive(bufferImpressao);
+  adc1_config_channel_atten(ADC1_CHANNEL_3, ADC_ATTEN_DB_11);
+  tipo = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, ADC_VREF, &adc);
 
   dadosRelevantes = xSemaphoreCreateBinary();
   xSemaphoreGive(dadosRelevantes);
@@ -130,20 +66,87 @@ void setup(){
     0
   );
 
-  Timer0_Cfg = timerBegin(0, 20, true);
+  Timer0_Cfg = timerBegin(0, TIMER0_PRESCALE, true);
   timerAttachInterrupt(Timer0_Cfg, &Timer0_ISR, true);
-  timerAlarmWrite(Timer0_Cfg, 520, true);
+  timerAlarmWrite(Timer0_Cfg, TIMER0_ALARM, true);
   timerAlarmEnable(Timer0_Cfg);
 
-  Timer1_Cfg = timerBegin(1, 60000, true);
+  Timer1_Cfg = timerBegin(1, TIMER1_PRESCALE, true);
   timerAttachInterrupt(Timer1_Cfg, &Timer1_ISR, true);
-  timerAlarmWrite(Timer1_Cfg, 80000, true);
+  timerAlarmWrite(Timer1_Cfg, TIMER1_ALARM, true);
   timerAlarmEnable(Timer1_Cfg);
 
   Serial.println("Configuracao terminada");
 }
 
 void loop(){}
+
+static void IRAM_ATTR Timer0_ISR(){
+  taskCaptacaoDados = pdFALSE;
+
+  vTaskNotifyGiveFromISR(captacaoDados, &taskCaptacaoDados);
+
+  if(taskCaptacaoDados == pdTRUE) portYIELD_FROM_ISR();
+}
+
+static void IRAM_ATTR Timer1_ISR(){
+  taskExibicaoDadosRelevantes = pdFALSE;
+  vTaskNotifyGiveFromISR(exibicaoDados, &taskExibicaoDadosRelevantes);
+
+  if(taskExibicaoDadosRelevantes == pdTRUE) portYIELD_FROM_ISR();
+}
+
+static void taskCore0(void* pvParameters){
+  const float offset = 1.64,
+              kPropor = 1001.922667;
+  int leituraRaw = 0;
+  static float sumV = 0,
+               sumV2 = 0,
+               cont = 0,
+               leituraVolt = 0,
+               maior = 0;
+
+  while(1){
+    ulTaskNotifyTake(taskCaptacaoDados, portMAX_DELAY);
+
+    leituraRaw = adc1_get_raw(ADC1_CHANNEL_3);
+    leituraVolt = esp_adc_cal_raw_to_voltage(leituraRaw, &adc) / 1000.0;
+    leituraVolt = kPropor * (leituraVolt - offset);
+    sumV += leituraVolt;
+    sumV2 += leituraVolt * leituraVolt;
+    cont++;
+    if(abs(leituraVolt) > maior) maior = abs(leituraVolt);
+
+    if(xSemaphoreTake(dadosRelevantes, 0) == pdPASS){
+      dados.tensao2 += sumV2;
+      dados.tensao += sumV;
+      dados.contador += cont;
+      dados.pico = maior;
+      sumV = 0;
+      sumV2 = 0;
+      cont = 0;
+      maior = 0; 
+      xSemaphoreGive(dadosRelevantes);
+    }
+  }
+}
+
+static void taskCore1(void* pvParameters){
+  while(1){
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    xSemaphoreTake(dadosRelevantes, portMAX_DELAY);
+
+    dados.eficaz = sqrtf(dados.tensao2 / dados.contador);
+    dados.media = dados.tensao / dados.contador;
+    zerar();
+
+    Serial.printf("E = %.2f\n", dados.eficaz);
+    Serial.printf("M = %.2f\n", dados.media);
+    Serial.printf("P = %.2f\n", dados.pico);
+    
+    xSemaphoreGive(dadosRelevantes);
+  }
+}
 
 void initDados(void){
   dados.tensao2 = 0;
@@ -152,7 +155,6 @@ void initDados(void){
   dados.media = 0;
   dados.eficaz = 0;
   dados.pico = 0;
-  dados.zerar = &zerar;
 }
 
 void zerar(void){
