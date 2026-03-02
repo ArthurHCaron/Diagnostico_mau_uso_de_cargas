@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <esp_adc_cal.h>
 #include <math.h>
+#include <WiFi.h>
+#include "HTTPClient.h"
 
 #define INP_PIN 4
 #define ADC_VREF 1100
@@ -9,6 +11,10 @@
 #define TIMER1_PRESCALE 60000
 #define TIMER1_ALARM 80000
 
+const char* ssid = "Rede",
+          * senha = "arthur12345";
+String chave_api = "BG6PWGBS16E0S58D",
+       server = "http://api.thingspeak.com/update";
 hw_timer_t *Timer0_Cfg = NULL,
            *Timer1_Cfg = NULL;
 esp_adc_cal_characteristics_t adc;
@@ -76,6 +82,13 @@ void setup(){
   timerAlarmWrite(Timer1_Cfg, TIMER1_ALARM, true);
   timerAlarmEnable(Timer1_Cfg);
 
+  WiFi.begin(ssid, senha);
+
+  while(WiFi.status() != WL_CONNECTED){
+    Serial.println("Conectando wifi...");
+    delay(1000);
+  }
+
   Serial.println("Configuracao terminada");
 }
 
@@ -103,8 +116,7 @@ static void taskCore0(void* pvParameters){
   static float sumV = 0,
                sumV2 = 0,
                cont = 0,
-               leituraVolt = 0,
-               maior = 0;
+               leituraVolt = 0;
 
   while(1){
     ulTaskNotifyTake(taskCaptacaoDados, portMAX_DELAY);
@@ -115,29 +127,33 @@ static void taskCore0(void* pvParameters){
     sumV += leituraVolt;
     sumV2 += leituraVolt * leituraVolt;
     cont++;
-    if(abs(leituraVolt) > maior) maior = abs(leituraVolt);
 
     if(xSemaphoreTake(dadosRelevantes, 0) == pdPASS){
       dados.tensao2 += sumV2;
       dados.tensao += sumV;
       dados.contador += cont;
-      dados.pico = maior;
       sumV = 0;
       sumV2 = 0;
       cont = 0;
-      maior = 0; 
       xSemaphoreGive(dadosRelevantes);
     }
   }
 }
 
 static void taskCore1(void* pvParameters){
+  int codHttp = 0;
+  float eficazEnvio = 0;
+  String url = "";
+  HTTPClient http;
+
   while(1){
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     xSemaphoreTake(dadosRelevantes, portMAX_DELAY);
 
     dados.eficaz = sqrtf(dados.tensao2 / dados.contador);
     dados.media = dados.tensao / dados.contador;
+    dados.pico = dados.eficaz * M_SQRT2 / 2;
+    eficazEnvio = dados.eficaz;
     zerar();
 
     Serial.printf("E = %.2f\n", dados.eficaz);
@@ -145,6 +161,19 @@ static void taskCore1(void* pvParameters){
     Serial.printf("P = %.2f\n", dados.pico);
     
     xSemaphoreGive(dadosRelevantes);
+
+    if(!isnan(dados.eficaz)){
+      if(WiFi.status() == WL_CONNECTED){
+        url = server + "?api_key=" + chave_api + 
+              "&field1=" + String(eficazEnvio, 2);
+        http.begin(url);
+
+        codHttp = http.GET();
+        Serial.println(codHttp > 0 ? "Dados enviados" : "Erro de envio WiFi");
+
+        http.end();
+      }
+    }
   }
 }
 
