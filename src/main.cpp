@@ -11,9 +11,9 @@
 #define TIMER1_PRESCALE 60000
 #define TIMER1_ALARM 80000
 
-const char* ssid = "Rede",
-          * senha = "arthur12345";
-String chave_api = "BG6PWGBS16E0S58D",
+const char* ssid = WIFI_SSID,
+          * senha = WIFI_PASSWORD;
+String chave_api = API_KEY,
        server = "http://api.thingspeak.com/update";
 hw_timer_t *Timer0_Cfg = NULL,
            *Timer1_Cfg = NULL;
