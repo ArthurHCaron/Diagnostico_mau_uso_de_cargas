@@ -109,7 +109,7 @@ static void IRAM_ATTR Timer1_ISR(){
 
 static void taskCore0(void* pvParameters){
   const float offset = 1.64,
-              kPropor = 1001.922667;
+              kPropor = 930.37;
   int leituraRaw = 0,
       correnteRaw = 0;
   static float sumV2 = 0,
