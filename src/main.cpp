@@ -164,8 +164,8 @@ static void taskCore1(void* pvParameters){
     vEficaz = sqrtf(dados.tensao2 / dados.contador);
     iEficaz = sqrtf(dados.corrente2 / dados.contador);
     potAp = iEficaz * vEficaz;
-    potR = dados.prodVI / dados.contador;
-    potAt = sqrtf(potAp * potAp - potR * potR);
+    potAt = dados.prodVI / dados.contador;
+    potR = sqrtf(potAp * potAp - potAt * potAt);
     envio[0] = vEficaz;
     envio[1] = iEficaz;
     envio[2] = potAt;
