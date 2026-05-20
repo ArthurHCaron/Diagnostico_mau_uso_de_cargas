@@ -7,6 +7,7 @@
 	<buildSpec>
 	</buildSpec>
 	<natures>
+<<<<<<< HEAD
 		<nature>com.st.stm32cube.ide.mcu.MCUProjectNature</nature>
 		<nature>com.st.stm32cube.ide.mcu.MCURootProjectNature</nature>
 		<nature>com.st.stm32cube.ide.mcu.MCUCubeIdeServicesRevAev2ProjectNature</nature>
@@ -181,4 +182,7 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/timers.c</locationURI>
 		</link>
 	</linkedResources>
+=======
+	</natures>
+>>>>>>> dd5f819 (conserto)
 </projectDescription>
