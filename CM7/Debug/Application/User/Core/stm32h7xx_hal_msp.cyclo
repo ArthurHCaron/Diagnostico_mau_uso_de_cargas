@@ -1,5 +1,0 @@
-/home/arthur/IC_STM32/CM7/Core/Src/stm32h7xx_hal_msp.c:63:6:HAL_MspInit	1
-/home/arthur/IC_STM32/CM7/Core/Src/stm32h7xx_hal_msp.c:87:6:HAL_ADC_MspInit	4
-/home/arthur/IC_STM32/CM7/Core/Src/stm32h7xx_hal_msp.c:166:6:HAL_ADC_MspDeInit	2
-/home/arthur/IC_STM32/CM7/Core/Src/stm32h7xx_hal_msp.c:200:6:HAL_TIM_Base_MspInit	2
-/home/arthur/IC_STM32/CM7/Core/Src/stm32h7xx_hal_msp.c:223:6:HAL_TIM_Base_MspDeInit	2

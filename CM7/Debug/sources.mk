@@ -27,8 +27,11 @@ Application/User/Core \
 Application/User/Startup \
 Application/User/USB_DEVICE/App \
 Application/User/USB_DEVICE/Target \
+Core/Src \
 Drivers/CMSIS \
 Drivers/STM32H7xx_HAL_Driver \
 Middlewares/FreeRTOS \
 Middlewares/STM32_USB_Device_Library \
+USB_DEVICE/App \
+USB_DEVICE/Target \
 

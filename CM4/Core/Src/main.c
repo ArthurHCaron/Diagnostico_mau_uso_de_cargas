@@ -72,13 +72,6 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for taskDeImpressao */
-osThreadId_t taskDeImpressaoHandle;
-const osThreadAttr_t taskDeImpressao_attributes = {
-  .name = "taskDeImpressao",
-  .stack_size = 2048 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
 /* Definitions for smImpressao */
 osSemaphoreId_t smImpressaoHandle;
 const osSemaphoreAttr_t smImpressao_attributes = {
@@ -91,9 +84,11 @@ __attribute__((section(".shared_data"))) static volatile uint8_t pronto = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 static void MPU_Config(void);
+static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_TIM1_Init(void);
 void StartDefaultTask(void *argument);
-void tkImpressao(void *argument);
 
 /* USER CODE BEGIN PFP */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc);
@@ -152,10 +147,13 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
+  MX_GPIO_Init();
   MX_DMA_Init();
+  MX_ADC1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET_LINEARITY, ADC_SINGLE_ENDED);
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adc_buffer, ADC_NUM_CONVERSIONS);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adc_buffer, ADC_NUM_CONVERSIONS * 8192);
   HAL_TIM_Base_Start(&htim1);
   /* USER CODE END 2 */
 
@@ -186,9 +184,6 @@ int main(void)
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of taskDeImpressao */
-  taskDeImpressaoHandle = osThreadNew(tkImpressao, NULL, &taskDeImpressao_attributes);
-
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -218,7 +213,7 @@ int main(void)
   * @param None
   * @retval None
   */
-void MX_ADC1_Init(void)
+static void MX_ADC1_Init(void)
 {
 
   /* USER CODE BEGIN ADC1_Init 0 */
@@ -265,13 +260,13 @@ void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_387CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_810CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
-  sConfig.OffsetSignedSaturation = DISABLE;
+  sConfig.OffsetSignedSaturation = ENABLE;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -279,8 +274,9 @@ void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Channel = ADC_CHANNEL_5;
   sConfig.Rank = ADC_REGULAR_RANK_2;
+  sConfig.OffsetSignedSaturation = DISABLE;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -296,7 +292,7 @@ void MX_ADC1_Init(void)
   * @param None
   * @retval None
   */
-void MX_TIM1_Init(void)
+static void MX_TIM1_Init(void)
 {
 
   /* USER CODE BEGIN TIM1_Init 0 */
@@ -310,7 +306,7 @@ void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 325;
+  htim1.Init.Prescaler = 324;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 23;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -347,6 +343,43 @@ static void MX_DMA_Init(void)
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
 
+  /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+
+}
+
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+
+  /* USER CODE END MX_GPIO_Init_1 */
+
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LED_B_GPIO_Port, LED_B_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : LED_B_Pin */
+  GPIO_InitStruct.Pin = LED_B_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED_B_GPIO_Port, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -354,12 +387,14 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc){
 	pronto = 1;
 	HAL_HSEM_Take(HSEM_ID_1, ACQ_PROCESS_ID);
 	HAL_HSEM_Release(HSEM_ID_1, ACQ_PROCESS_ID);
+	HAL_GPIO_TogglePin(LED_B_GPIO_Port, LED_B_Pin);
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
 	pronto = 2;
 	HAL_HSEM_Take(HSEM_ID_1, ACQ_PROCESS_ID);
 	HAL_HSEM_Release(HSEM_ID_1, ACQ_PROCESS_ID);
+	HAL_GPIO_TogglePin(LED_B_GPIO_Port, LED_B_Pin);
 }
 /* USER CODE END 4 */
 
@@ -379,24 +414,6 @@ void StartDefaultTask(void *argument)
     osDelay(1);
   }
   /* USER CODE END 5 */
-}
-
-/* USER CODE BEGIN Header_tkImpressao */
-/**
-* @brief Function implementing the taskDeImpressao thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_tkImpressao */
-__weak void tkImpressao(void *argument)
-{
-  /* USER CODE BEGIN tkImpressao */
-
-  while(1)
-  {
-  }
-  osDelay(1);
-  /* USER CODE END tkImpressao */
 }
 
  /* MPU Configuration */

@@ -9,10 +9,13 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
+-include USB_DEVICE/Target/subdir.mk
+-include USB_DEVICE/App/subdir.mk
 -include Middlewares/STM32_USB_Device_Library/subdir.mk
 -include Middlewares/FreeRTOS/subdir.mk
 -include Drivers/STM32H7xx_HAL_Driver/subdir.mk
 -include Drivers/CMSIS/subdir.mk
+-include Core/Src/subdir.mk
 -include Application/User/USB_DEVICE/Target/subdir.mk
 -include Application/User/USB_DEVICE/App/subdir.mk
 -include Application/User/Startup/subdir.mk
@@ -68,8 +71,8 @@ all: main-build
 main-build: IC_STM32_CM7.elf secondary-outputs
 
 # Tool invocations
-IC_STM32_CM7.elf IC_STM32_CM7.map: $(OBJS) $(USER_OBJS) /home/arthur/IC_STM32/STM32CubeIDE/CM7/STM32H747XIHX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "IC_STM32_CM7.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"/home/arthur/IC_STM32/STM32CubeIDE/CM7/STM32H747XIHX_FLASH.ld" --specs=nosys.specs -Wl,-Map="IC_STM32_CM7.map" -Wl,--gc-sections -static -u_printf_float --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+IC_STM32_CM7.elf IC_STM32_CM7.map: $(OBJS) $(USER_OBJS) /home/arthur/IC_STM32/CM7/STM32H747XIHX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "IC_STM32_CM7.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"/home/arthur/IC_STM32/CM7/STM32H747XIHX_FLASH.ld" --specs=nosys.specs -Wl,-Map="IC_STM32_CM7.map" -Wl,--gc-sections -static -u_printf_float --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

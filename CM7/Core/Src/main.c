@@ -77,10 +77,10 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for captacaoDados */
-osThreadId_t captacaoDadosHandle;
-const osThreadAttr_t captacaoDados_attributes = {
-  .name = "captacaoDados",
+/* Definitions for tkProcessamento */
+osThreadId_t tkProcessamentoHandle;
+const osThreadAttr_t tkProcessamento_attributes = {
+  .name = "tkProcessamento",
   .stack_size = 1000 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
@@ -88,6 +88,7 @@ const osThreadAttr_t captacaoDados_attributes = {
 __attribute__((section(".shared_data"))) static volatile adc_buffer_t adc_buffer[8192];
 __attribute__((section(".shared_data"))) static volatile uint8_t pronto = 0;
 volatile TaskHandle_t taskAtiva = NULL;
+static char tx_buffer[512];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -95,7 +96,6 @@ void SystemClock_Config(void);
 static void MPU_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
-static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 void StartDefaultTask(void *argument);
 void tkCaptacaoDados(void *argument);
@@ -179,16 +179,17 @@ Error_Handler();
 /* USER CODE END Boot_Mode_Sequence_2 */
 
   /* USER CODE BEGIN SysInit */
-
+  HAL_NVIC_SetPriority(HSEM1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(HSEM1_IRQn);
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_ADC1_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_PWREx_EnableUSBVoltageDetector();
+  MX_USB_DEVICE_Init();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -214,8 +215,8 @@ Error_Handler();
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of captacaoDados */
-  captacaoDadosHandle = osThreadNew(tkCaptacaoDados, NULL, &captacaoDados_attributes);
+  /* creation of tkProcessamento */
+  tkProcessamentoHandle = osThreadNew(tkCaptacaoDados, NULL, &tkProcessamento_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -306,7 +307,7 @@ void SystemClock_Config(void)
   * @param None
   * @retval None
   */
-static void MX_ADC1_Init(void)
+void MX_ADC1_Init(void)
 {
 
   /* USER CODE BEGIN ADC1_Init 0 */
@@ -353,13 +354,13 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_387CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_810CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
-  sConfig.OffsetSignedSaturation = DISABLE;
+  sConfig.OffsetSignedSaturation = ENABLE;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -367,8 +368,9 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Channel = ADC_CHANNEL_5;
   sConfig.Rank = ADC_REGULAR_RANK_2;
+  sConfig.OffsetSignedSaturation = DISABLE;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -398,7 +400,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 325;
+  htim1.Init.Prescaler = 324;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 23;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -435,11 +437,6 @@ static void MX_DMA_Init(void)
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
 
-  /* DMA interrupt init */
-  /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
-
 }
 
 /**
@@ -456,26 +453,14 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOJ_CLK_ENABLE();
   __HAL_RCC_GPIOI_CLK_ENABLE();
-  __HAL_RCC_GPIOF_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_B_GPIO_Port, LED_B_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : LED_B_Pin */
-  GPIO_InitStruct.Pin = LED_B_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_B_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_G_Pin */
   GPIO_InitStruct.Pin = LED_G_Pin;
@@ -499,8 +484,10 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_HSEM_FreeCallback(uint32_t SemMask){
 	BaseType_t xAcordarTaskEnvio = pdFALSE;
-
 	if(SemMask == __HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1)){
+
+		if(taskAtiva == NULL) return;
+
 		vTaskNotifyGiveFromISR(taskAtiva, &xAcordarTaskEnvio);
 		portYIELD_FROM_ISR(xAcordarTaskEnvio);
 	}
@@ -537,8 +524,7 @@ void StartDefaultTask(void *argument)
 void tkCaptacaoDados(void *argument)
 {
   /* USER CODE BEGIN tkCaptacaoDados */
-	static int len = 0;
-	uint8_t frase[16];
+
 
 	taskAtiva = xTaskGetCurrentTaskHandle();
 	HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
@@ -546,17 +532,44 @@ void tkCaptacaoDados(void *argument)
   while(1)
   {
 	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
+	HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
 	if(pronto > 0){
-		for(int i = 0; i < 4096; i++){
-			len = sprintf((char*) frase, "%d\n", adc_buffer[i + 4096 * (pronto - 1)].tensao);
+	        int offset = 0; // Controla onde estamos escrevendo dentro do tx_buffer
 
-			while(CDC_Transmit_FS(frase, len) == USBD_BUSY);
-		}
+	        for(int i = 0; i < 4096; i++){
+	            // Acumula os dados no buffer ponte usando o retorno do sprintf
+	            // sprintf retorna quantos caracteres foram escritos
+	            offset += sprintf(tx_buffer + offset, "%d\n", adc_buffer[i + 4096 * (pronto - 1)].tensao);
 
-		HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
-	}
+	            // Quando o buffer estiver quase cheio (ex: passou de 450 bytes), transmitimos
+	            if (offset >= 450) {
+	                // Força o cache para a RAM (se a MPU exigir)
+	                SCB_CleanDCache_by_Addr((uint32_t*)tx_buffer, offset);
 
+	                // Timeout de segurança para não congelar o FreeRTOS se o cabo soltar
+	                uint32_t timeout = HAL_GetTick();
+	                while(CDC_Transmit_FS((uint8_t*)tx_buffer, offset) == USBD_BUSY) {
+	                    if (HAL_GetTick() - timeout > 50) break; // Desiste após 50ms
+	                    osThreadYield(); // Deixa outras tasks do FreeRTOS rodarem enquanto o USB está ocupado
+	                }
+
+	                offset = 0; // Zera o contador para o próximo lote
+	            }
+	        }
+
+	        // Fim do laço: envia a "sobra" de dados que não encheu um pacote completo
+	        if (offset > 0) {
+	            SCB_CleanDCache_by_Addr((uint32_t*)tx_buffer, offset);
+
+	            uint32_t timeout = HAL_GetTick();
+	            while(CDC_Transmit_FS((uint8_t*)tx_buffer, offset) == USBD_BUSY) {
+	                if (HAL_GetTick() - timeout > 50) break;
+	                osThreadYield();
+	            }
+	        }
+	    }
+
+    HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
     osDelay(1);
   }
   /* USER CODE END tkCaptacaoDados */

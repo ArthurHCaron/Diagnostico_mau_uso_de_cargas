@@ -51,14 +51,13 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+void MX_ADC1_Init(void);
 
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED_B_Pin GPIO_PIN_3
-#define LED_B_GPIO_Port GPIOE
 #define LED_G_Pin GPIO_PIN_13
 #define LED_G_GPIO_Port GPIOJ
 #define LED_R_Pin GPIO_PIN_12

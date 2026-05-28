@@ -59,6 +59,7 @@ IC_STM32
 Imagens
 log1.txt
 MANIFEST.MF
+minhamusica.wav
 Modelos
 Músicas
 NetBeansJDKs
