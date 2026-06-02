@@ -57,7 +57,37 @@ Application/User/Core/main.o: /home/arthur/IC_STM32/CM7/Core/Src/main.c \
  ../../../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h \
  ../../../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
  ../../../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
- ../../../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
+ ../../../Middlewares/Third_Party/FreeRTOS/Source/include/list.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math_types.h \
+ ../../../Drivers/CMSIS/Include/cmsis_compiler.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math_memory.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/none.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math_types.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/utils.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/basic_math_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math_memory.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/none.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/utils.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/interpolation_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/bayes_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/statistics_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/basic_math_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/fast_math_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/matrix_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/complex_math_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/statistics_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/controller_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/support_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/distance_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/svm_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/svm_defines.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/fast_math_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/transform_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/complex_math_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/filtering_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/support_functions.h \
+ /home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/quaternion_math_functions.h
 ../../../CM7/Core/Inc/main.h:
 ../../../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h:
 ../../../CM7/Core/Inc/stm32h7xx_hal_conf.h:
@@ -117,3 +147,33 @@ Application/User/Core/main.o: /home/arthur/IC_STM32/CM7/Core/Src/main.c \
 ../../../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h:
 ../../../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
 ../../../Middlewares/Third_Party/FreeRTOS/Source/include/list.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math_types.h:
+../../../Drivers/CMSIS/Include/cmsis_compiler.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math_memory.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/none.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math_types.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/utils.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/basic_math_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/arm_math_memory.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/none.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/utils.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/interpolation_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/bayes_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/statistics_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/basic_math_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/fast_math_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/matrix_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/complex_math_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/statistics_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/controller_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/support_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/distance_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/svm_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/svm_defines.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/fast_math_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/transform_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/complex_math_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/filtering_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/support_functions.h:
+/home/arthur/IC_STM32/Drivers/CMSIS/DSP/Include/dsp/quaternion_math_functions.h:

@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include "usbd_cdc_if.h"
 #include "task.h"
+#include "arm_math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,6 +36,17 @@ typedef struct dados{
 	uint16_t tensao,
 		     corrente;
 } adc_buffer_t;
+
+struct{
+	float32_t v_rms,
+		      i_rms,
+		      s,
+		      p,
+		      q,
+			  dht,
+			  v_fundamental,
+			  v_harmonicas[50];
+} static metricasEnergia;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -42,9 +54,9 @@ typedef struct dados{
 #define HSEM_ID_1 (1U)
 #define PRINT_PROCESS_ID 2
 #define OFFSET 			    1.65
-#define KCONV				5035477e-11
-#define KVOLT				900 //Mudar depois
-#define KAMP				0.05
+#define KCONV				5035477226e-14 // 3.3 / (2¹⁶ - 1)
+#define KVOLT				993.5 //Empírico, necessita calibração
+#define KAMP				0.05 // 1 / 20
 /* DUAL_CORE_BOOT_SYNC_SEQUENCE: Define for dual core boot synchronization    */
 /*                             demonstration code based on hardware semaphore */
 /* This define is present in both CM7/CM4 projects                            */
@@ -87,8 +99,12 @@ const osThreadAttr_t tkProcessamento_attributes = {
 /* USER CODE BEGIN PV */
 __attribute__((section(".shared_data"))) static volatile adc_buffer_t adc_buffer[8192];
 __attribute__((section(".shared_data"))) static volatile uint8_t pronto = 0;
+static float32_t tensao[4096],
+				 corrente[4096],
+				 potencia[4096],
+				 resultadoFFT[4096];
 volatile TaskHandle_t taskAtiva = NULL;
-static char tx_buffer[512];
+static arm_rfft_fast_instance_f32 instanciaFFT;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -190,6 +206,8 @@ Error_Handler();
   /* USER CODE BEGIN 2 */
   HAL_PWREx_EnableUSBVoltageDetector();
   MX_USB_DEVICE_Init();
+
+  arm_rfft_fast_init_f32(&instanciaFFT)
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -492,6 +510,7 @@ void HAL_HSEM_FreeCallback(uint32_t SemMask){
 		portYIELD_FROM_ISR(xAcordarTaskEnvio);
 	}
 }
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -524,7 +543,9 @@ void StartDefaultTask(void *argument)
 void tkCaptacaoDados(void *argument)
 {
   /* USER CODE BEGIN tkCaptacaoDados */
-
+	uint8_t tamanhoPayload = 0;
+	uint32_t timeout = 0;
+	static char payloadUSB[32] __attribute__((aligned(32)));
 
 	taskAtiva = xTaskGetCurrentTaskHandle();
 	HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
@@ -534,46 +555,38 @@ void tkCaptacaoDados(void *argument)
 	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 	HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
 	if(pronto > 0){
-	        int offset = 0; // Controla onde estamos escrevendo dentro do tx_buffer
+	     for(int i = 0; i < 4096; i++){
+	    	 tensao[i] = KVOLT * (adc_buffer[(pronto - 1) * 4096 + i].tensao * KCONV - OFFSET);
+	    	 corrente[i] = KAMP * (adc_buffer[(pronto - 1) * 4096 + i].corrente * KCONV - OFFSET);
+	     }
 
-	        for(int i = 0; i < 4096; i++){
-	            // Acumula os dados no buffer ponte usando o retorno do sprintf
-	            // sprintf retorna quantos caracteres foram escritos
-	            offset += sprintf(tx_buffer + offset, "%d\n", adc_buffer[i + 4096 * (pronto - 1)].tensao);
+	     arm_rms_f32(tensao, 4096, &(metricasEnergia.v_rms));
+	     arm_rms_f32(corrente, 4096, &(metricasEnergia.i_rms));
+	     arm_mult_f32(tensao, corrente, potencia, 4096);
+	     arm_mean_f32(potencia, 4096, &(metricasEnergia.p));
 
-	            // Quando o buffer estiver quase cheio (ex: passou de 450 bytes), transmitimos
-	            if (offset >= 450) {
-	                // Força o cache para a RAM (se a MPU exigir)
-	                SCB_CleanDCache_by_Addr((uint32_t*)tx_buffer, offset);
+	     metricasEnergia.s = metricasEnergia.v_rms * metricasEnergia.i_rms;
+	     arm_sqrt_f32(metricasEnergia.s * metricasEnergia.s - metricasEnergia.p * metricasEnergia.p,
+	    		 	  &(metricasEnergia.q));
 
-	                // Timeout de segurança para não congelar o FreeRTOS se o cabo soltar
-	                uint32_t timeout = HAL_GetTick();
-	                while(CDC_Transmit_FS((uint8_t*)tx_buffer, offset) == USBD_BUSY) {
-	                    if (HAL_GetTick() - timeout > 50) break; // Desiste após 50ms
-	                    osThreadYield(); // Deixa outras tasks do FreeRTOS rodarem enquanto o USB está ocupado
-	                }
+	     arm_rfft_fast_f32(&instanciaFFT, tensao, saidaFFT, 0);
+	     arm_cmplx_mag_f32()
+	     timeout = HAL_GetTick();
 
-	                offset = 0; // Zera o contador para o próximo lote
-	            }
-	        }
+	     SCB_CleanDCache_by_Addr(payloadUSB, 32);
 
-	        // Fim do laço: envia a "sobra" de dados que não encheu um pacote completo
-	        if (offset > 0) {
-	            SCB_CleanDCache_by_Addr((uint32_t*)tx_buffer, offset);
-
-	            uint32_t timeout = HAL_GetTick();
-	            while(CDC_Transmit_FS((uint8_t*)tx_buffer, offset) == USBD_BUSY) {
-	                if (HAL_GetTick() - timeout > 50) break;
-	                osThreadYield();
-	            }
-	        }
-	    }
+	     while(CDC_Transmit_FS((uint8_t*) payloadUSB, tamanhoPayload) == USBD_BUSY){
+	    	 if(HAL_GetTick() - timeout > 500) break;
+	    	 osThreadYield();
+	     }
+	}
 
     HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
     osDelay(1);
   }
   /* USER CODE END tkCaptacaoDados */
 }
+
 
  /* MPU Configuration */
 
