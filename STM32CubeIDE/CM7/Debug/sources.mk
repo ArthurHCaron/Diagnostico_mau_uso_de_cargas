@@ -30,10 +30,12 @@ Application/User/USB_DEVICE/Target \
 Drivers/CMSIS \
 Drivers/STM32H7xx_HAL_Driver \
 Middlewares/BasicMathFunctions \
+Middlewares/CommonTables \
 Middlewares/ComplexMathFunctions \
 Middlewares/FastMathFunctions \
 Middlewares/FreeRTOS \
 Middlewares/STM32_USB_Device_Library \
 Middlewares/StatisticsFunctions \
 Middlewares/TransformFunctions \
+Middlewares/cJSON \
 

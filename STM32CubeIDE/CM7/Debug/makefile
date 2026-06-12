@@ -9,12 +9,14 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
+-include Middlewares/cJSON/subdir.mk
 -include Middlewares/TransformFunctions/subdir.mk
 -include Middlewares/StatisticsFunctions/subdir.mk
 -include Middlewares/STM32_USB_Device_Library/subdir.mk
 -include Middlewares/FreeRTOS/subdir.mk
 -include Middlewares/FastMathFunctions/subdir.mk
 -include Middlewares/ComplexMathFunctions/subdir.mk
+-include Middlewares/CommonTables/subdir.mk
 -include Middlewares/BasicMathFunctions/subdir.mk
 -include Drivers/STM32H7xx_HAL_Driver/subdir.mk
 -include Drivers/CMSIS/subdir.mk

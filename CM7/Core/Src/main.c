@@ -28,6 +28,7 @@
 #include "usbd_cdc_if.h"
 #include "task.h"
 #include "arm_math.h"
+#include "cJSON.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,7 +38,7 @@ typedef struct dados{
 		     corrente;
 } adc_buffer_t;
 
-struct{
+typedef struct{
 	float32_t v_rms,
 		      i_rms,
 		      s,
@@ -45,8 +46,9 @@ struct{
 		      q,
 			  dht,
 			  v_fundamental,
-			  v_harmonicas[50];
-} static metricasEnergia;
+			  v_harmonicas[50],
+			  v_medio;
+} metricas_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -89,12 +91,24 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for tkProcessamento */
-osThreadId_t tkProcessamentoHandle;
-const osThreadAttr_t tkProcessamento_attributes = {
-  .name = "tkProcessamento",
+/* Definitions for taskPDS */
+osThreadId_t taskPDSHandle;
+const osThreadAttr_t taskPDS_attributes = {
+  .name = "taskPDS",
   .stack_size = 1000 * 4,
   .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for taskRede */
+osThreadId_t taskRedeHandle;
+const osThreadAttr_t taskRede_attributes = {
+  .name = "taskRede",
+  .stack_size = 1000 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for queueMetricas */
+osMessageQueueId_t queueMetricasHandle;
+const osMessageQueueAttr_t queueMetricas_attributes = {
+  .name = "queueMetricas"
 };
 /* USER CODE BEGIN PV */
 __attribute__((section(".shared_data"))) static volatile adc_buffer_t adc_buffer[8192];
@@ -102,9 +116,11 @@ __attribute__((section(".shared_data"))) static volatile uint8_t pronto = 0;
 static float32_t tensao[4096],
 				 corrente[4096],
 				 potencia[4096],
-				 resultadoFFT[4096];
+				 saidaFFT[4096],
+				 bufferHarmonicas[2048];
 volatile TaskHandle_t taskAtiva = NULL;
 static arm_rfft_fast_instance_f32 instanciaFFT;
+static metricas_t metricasEnergia;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,10 +130,14 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 void StartDefaultTask(void *argument);
-void tkCaptacaoDados(void *argument);
+void tkPDS(void *argument);
+void tkRede(void *argument);
 
 /* USER CODE BEGIN PFP */
+void JSON_Init();
 void HAL_HSEM_FreeCallback(uint32_t SemMask);
+void pdsSR();
+char* geracaoJSON();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -204,10 +224,11 @@ Error_Handler();
   MX_DMA_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
+  JSON_Init();
   HAL_PWREx_EnableUSBVoltageDetector();
   MX_USB_DEVICE_Init();
 
-  arm_rfft_fast_init_f32(&instanciaFFT)
+  arm_rfft_fast_init_f32(&instanciaFFT, 4096);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -225,6 +246,10 @@ Error_Handler();
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of queueMetricas */
+  queueMetricasHandle = osMessageQueueNew (16, sizeof(metricas_t), &queueMetricas_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -233,8 +258,11 @@ Error_Handler();
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of tkProcessamento */
-  tkProcessamentoHandle = osThreadNew(tkCaptacaoDados, NULL, &tkProcessamento_attributes);
+  /* creation of taskPDS */
+  taskPDSHandle = osThreadNew(tkPDS, NULL, &taskPDS_attributes);
+
+  /* creation of taskRede */
+  taskRedeHandle = osThreadNew(tkRede, NULL, &taskRede_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -500,6 +528,15 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void JSON_Init(){
+	cJSON_Hooks hooks;
+
+	hooks.malloc_fn = pvPortMalloc;
+	hooks.free_fn = vPortFree;
+
+	cJSON_InitHooks(&hooks);
+}
+
 void HAL_HSEM_FreeCallback(uint32_t SemMask){
 	BaseType_t xAcordarTaskEnvio = pdFALSE;
 	if(SemMask == __HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1)){
@@ -511,6 +548,62 @@ void HAL_HSEM_FreeCallback(uint32_t SemMask){
 	}
 }
 
+void pdsSR(){
+	uint32_t indiceFundamental = 0;
+
+	for(int i = 0; i < 4096; i++){
+		tensao[i] = KVOLT * (adc_buffer[(pronto - 1) * 4096 + i].tensao * KCONV - OFFSET);
+		corrente[i] = KAMP * (adc_buffer[(pronto - 1) * 4096 + i].corrente * KCONV - OFFSET);
+	}
+
+	arm_rms_f32(tensao, 4096, &(metricasEnergia.v_rms));
+	arm_rms_f32(corrente, 4096, &(metricasEnergia.i_rms));
+	arm_mult_f32(tensao, corrente, potencia, 4096);
+	arm_mean_f32(potencia, 4096, &(metricasEnergia.p));
+
+	metricasEnergia.s = metricasEnergia.v_rms * metricasEnergia.i_rms;
+	arm_sqrt_f32(metricasEnergia.s * metricasEnergia.s - metricasEnergia.p * metricasEnergia.p,
+				  &(metricasEnergia.q));
+
+	arm_rfft_fast_f32(&instanciaFFT, tensao, saidaFFT, 0);
+	arm_cmplx_mag_f32(saidaFFT, bufferHarmonicas,2048);
+	metricasEnergia.v_medio = bufferHarmonicas[0];
+
+	arm_max_f32(&bufferHarmonicas[10 - 1], 10, &(metricasEnergia.v_fundamental), &indiceFundamental);
+	indiceFundamental += 10;
+
+	for(int i = 2; i < 52; i++)
+		metricasEnergia.v_harmonicas[i - 2] = bufferHarmonicas[i * indiceFundamental - 1];
+
+	arm_power_f32(metricasEnergia.v_harmonicas, 50, &(metricasEnergia.dht));
+	arm_sqrt_f32(metricasEnergia.dht, &(metricasEnergia.dht));
+	metricasEnergia.dht /= metricasEnergia.v_fundamental * 100.0;
+}
+
+char* geracaoJSON(){
+	char* stringRetorno;
+	cJSON* payloadJSON =cJSON_CreateObject(),
+		 * tensao = cJSON_CreateFloatArray(bufferTensao, 256),
+		 * corrente = cJSON_CreateFloatArray(bufferCorrente, 256),
+		 * harmonicas = cJSON_CreateFloatArray(metricasEnergia.v_harmonicas, 10);
+
+	cJSON_AddNumberToObject(payloadJSON, "v_rms", metricasEnergia.v_rms);
+	cJSON_AddNumberToObject(payloadJSON, "i_rms", metricasEnergia.i_rms);
+	cJSON_AddNumberToObject(payloadJSON, "s", metricasEnergia.s);
+	cJSON_AddNumberToObject(payloadJSON, "p", metricasEnergia.p);
+	cJSON_AddNumberToObject(payloadJSON, "q", metricasEnergia.q);
+	cJSON_AddNumberToObject(payloadJSON, "dht", metricasEnergia.dht);
+	cJSON_AddNumberToObject(payloadJSON, "v_fundamental", metricasEnergia.v_fundamental);
+	cJSON_AddNumberToObject(payloadJSON, "v_medio", metricasEnergia.v_medio);
+	cJSON_AddItemToObject(payloadJSON, "tensao", tensao);
+	cJSON_AddItemToObject(payloadJSON, "corrente", corrente);
+	cJSON_AddItemToObject(payloadJSON, "harmonicas", harmonicas);
+
+	stringRetorno = cJSON_PrintUnformatted(payloadJSON);
+	cJSON_Delete(payloadJSON);
+
+	return stringRetorno;
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -533,16 +626,16 @@ void StartDefaultTask(void *argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_tkCaptacaoDados */
+/* USER CODE BEGIN Header_tkPDS */
 /**
 * @brief Function implementing the captacaoDados thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_tkCaptacaoDados */
-void tkCaptacaoDados(void *argument)
+/* USER CODE END Header_tkPDS */
+void tkPDS(void *argument)
 {
-  /* USER CODE BEGIN tkCaptacaoDados */
+  /* USER CODE BEGIN tkPDS */
 	uint8_t tamanhoPayload = 0;
 	uint32_t timeout = 0;
 	static char payloadUSB[32] __attribute__((aligned(32)));
@@ -555,22 +648,8 @@ void tkCaptacaoDados(void *argument)
 	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 	HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
 	if(pronto > 0){
-	     for(int i = 0; i < 4096; i++){
-	    	 tensao[i] = KVOLT * (adc_buffer[(pronto - 1) * 4096 + i].tensao * KCONV - OFFSET);
-	    	 corrente[i] = KAMP * (adc_buffer[(pronto - 1) * 4096 + i].corrente * KCONV - OFFSET);
-	     }
-
-	     arm_rms_f32(tensao, 4096, &(metricasEnergia.v_rms));
-	     arm_rms_f32(corrente, 4096, &(metricasEnergia.i_rms));
-	     arm_mult_f32(tensao, corrente, potencia, 4096);
-	     arm_mean_f32(potencia, 4096, &(metricasEnergia.p));
-
-	     metricasEnergia.s = metricasEnergia.v_rms * metricasEnergia.i_rms;
-	     arm_sqrt_f32(metricasEnergia.s * metricasEnergia.s - metricasEnergia.p * metricasEnergia.p,
-	    		 	  &(metricasEnergia.q));
-
-	     arm_rfft_fast_f32(&instanciaFFT, tensao, saidaFFT, 0);
-	     arm_cmplx_mag_f32()
+	     pdsSR();
+	     xQueueSend(queueMetricasHandle)
 	     timeout = HAL_GetTick();
 
 	     SCB_CleanDCache_by_Addr(payloadUSB, 32);
@@ -584,9 +663,28 @@ void tkCaptacaoDados(void *argument)
     HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
     osDelay(1);
   }
-  /* USER CODE END tkCaptacaoDados */
+  /* USER CODE END tkPDS */
 }
 
+/* USER CODE BEGIN Header_tkRede */
+/**
+* @brief Function implementing the taskRede thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_tkRede */
+void tkRede(void *argument)
+{
+  /* USER CODE BEGIN tkRede */
+	char* stringJSON;
+  /* Infinite loop */
+  while(1){
+	  stringJSON = geracaoJSON();
+
+	  vPortFree(stringJSON);
+  }
+  /* USER CODE END tkRede */
+}
 
  /* MPU Configuration */
 

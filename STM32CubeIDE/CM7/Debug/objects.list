@@ -35,6 +35,7 @@
 "./Drivers/STM32H7xx_HAL_Driver/stm32h7xx_hal_tim_ex.o"
 "./Drivers/STM32H7xx_HAL_Driver/stm32h7xx_ll_usb.o"
 "./Middlewares/BasicMathFunctions/BasicMathFunctions.o"
+"./Middlewares/CommonTables/CommonTables.o"
 "./Middlewares/ComplexMathFunctions/ComplexMathFunctions.o"
 "./Middlewares/FastMathFunctions/FastMathFunctions.o"
 "./Middlewares/FreeRTOS/cmsis_os2.o"
@@ -54,3 +55,4 @@
 "./Middlewares/STM32_USB_Device_Library/usbd_ioreq.o"
 "./Middlewares/StatisticsFunctions/StatisticsFunctions.o"
 "./Middlewares/TransformFunctions/TransformFunctions.o"
+"./Middlewares/cJSON/cJSON.o"
