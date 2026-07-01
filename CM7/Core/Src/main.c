@@ -101,18 +101,6 @@ const osThreadAttr_t taskPDS_attributes = {
   .stack_size = 2000 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
-/* Definitions for taskRede */
-osThreadId_t taskRedeHandle;
-const osThreadAttr_t taskRede_attributes = {
-  .name = "taskRede",
-  .stack_size = 1000 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for queueMetricas */
-osMessageQueueId_t queueMetricasHandle;
-const osMessageQueueAttr_t queueMetricas_attributes = {
-  .name = "queueMetricas"
-};
 /* USER CODE BEGIN PV */
 __attribute__((section(".shared_data"))) static volatile adc_buffer_t adc_buffer[8192];
 __attribute__((section(".shared_data"))) static volatile uint8_t pronto = 0;
@@ -135,7 +123,6 @@ static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 void StartDefaultTask(void *argument);
 void tkPDS(void *argument);
-void tkRede(void *argument);
 
 /* USER CODE BEGIN PFP */
 void HAL_HSEM_FreeCallback(uint32_t SemMask);
@@ -226,7 +213,6 @@ Error_Handler();
   MX_DMA_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-  //JSON_Init();
   HAL_PWREx_EnableUSBVoltageDetector();
   MX_USB_DEVICE_Init();
 
@@ -248,10 +234,6 @@ Error_Handler();
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
-  /* Create the queue(s) */
-  /* creation of queueMetricas */
-  queueMetricasHandle = osMessageQueueNew (16, sizeof(uint16_t), &queueMetricas_attributes);
-
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -262,9 +244,6 @@ Error_Handler();
 
   /* creation of taskPDS */
   taskPDSHandle = osThreadNew(tkPDS, NULL, &taskPDS_attributes);
-
-  /* creation of taskRede */
-  taskRedeHandle = osThreadNew(tkRede, NULL, &taskRede_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -655,22 +634,6 @@ void tkPDS(void *argument)
     osDelay(1);
   }
   /* USER CODE END tkPDS */
-}
-
-/* USER CODE BEGIN Header_tkRede */
-/**
-* @brief Function implementing the taskRede thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_tkRede */
-void tkRede(void *argument)
-{
-  /* USER CODE BEGIN tkRede */
-  /* Infinite loop */
-  while(1){
-  }
-  /* USER CODE END tkRede */
 }
 
  /* MPU Configuration */

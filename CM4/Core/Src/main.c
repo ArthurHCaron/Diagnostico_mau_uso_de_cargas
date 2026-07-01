@@ -18,14 +18,11 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "FreeRTOS.h"
-#include "cmsis_os2.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
-#include "semphr.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -65,18 +62,6 @@ DMA_HandleTypeDef hdma_adc1;
 
 TIM_HandleTypeDef htim1;
 
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-/* Definitions for smImpressao */
-osSemaphoreId_t smImpressaoHandle;
-const osSemaphoreAttr_t smImpressao_attributes = {
-  .name = "smImpressao"
-};
 /* USER CODE BEGIN PV */
 __attribute__((section(".shared_data"))) static volatile adc_buffer_t adc_buffer[8192];
 __attribute__((section(".shared_data"))) static volatile uint8_t pronto = 0;
@@ -88,8 +73,6 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
-void StartDefaultTask(void *argument);
-
 /* USER CODE BEGIN PFP */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc);
 void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc);
@@ -137,9 +120,6 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  MX_DMA_Init();
-  MX_ADC1_Init();
-  MX_TIM1_Init();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN SysInit */
@@ -156,46 +136,6 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adc_buffer, ADC_NUM_CONVERSIONS * 8192);
   HAL_TIM_Base_Start(&htim1);
   /* USER CODE END 2 */
-
-  /* Init scheduler */
-  osKernelInitialize();
-
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
-
-  /* Create the semaphores(s) */
-  /* creation of smImpressao */
-  smImpressaoHandle = osSemaphoreNew(1, 1, &smImpressao_attributes);
-
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
-
-  /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
-
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  /* USER CODE END RTOS_THREADS */
-
-  /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
-  /* USER CODE END RTOS_EVENTS */
-
-  /* Start scheduler */
-  osKernelStart();
-
-  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -345,7 +285,7 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
 
 }
@@ -397,24 +337,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
 	HAL_GPIO_TogglePin(LED_B_GPIO_Port, LED_B_Pin);
 }
 /* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
-{
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END 5 */
-}
 
  /* MPU Configuration */
 

@@ -23,19 +23,18 @@ OBJCOPY_BIN :=
 
 # Every subdirectory with source files must be described here
 SUBDIRS := \
+Application/User/BasicMathFunctions \
+Application/User/CommonTables \
+Application/User/ComplexMathFunctions \
 Application/User/Core \
+Application/User/FastMathFunctions \
 Application/User/Startup \
+Application/User/StatisticsFunctions \
+Application/User/TransformFunctions \
 Application/User/USB_DEVICE/App \
 Application/User/USB_DEVICE/Target \
 Drivers/CMSIS \
 Drivers/STM32H7xx_HAL_Driver \
-Middlewares/BasicMathFunctions \
-Middlewares/CommonTables \
-Middlewares/ComplexMathFunctions \
-Middlewares/FastMathFunctions \
 Middlewares/FreeRTOS \
 Middlewares/STM32_USB_Device_Library \
-Middlewares/StatisticsFunctions \
-Middlewares/TransformFunctions \
-Middlewares/cJSON \
 

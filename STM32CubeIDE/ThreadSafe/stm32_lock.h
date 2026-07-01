@@ -25,6 +25,7 @@
 .netbeans
 .openjfx
 .packettracer
+.pdfbox.cache
 .pki
 .platformio
 .profile
@@ -46,6 +47,11 @@
 .vscode-shared
 .wget-hsts
 2026-05-09 - Grupo 2 - Primeira Apresentação Individual - Arthur Henrique Caron.mp4
+2026-06-30 19-56-08.mp4
+2026-06-30-Grupo 2- Instalação das Ferramentas e Execução do Sistema.mp4
+2026-06-30-Grupo 2- Instalação das Ferramentas e Execução do Sistema.zip
+2026-06-30-Grupo 2-Segunda Apresentação Individual-Arthur Henrique Caron.mp4
+2026-06-30-Grupo 2-Segunda Apresentação Individual-Arthur Henrique Caron.zip
 Arduino
 Área de trabalho
 AVRDUDESS
