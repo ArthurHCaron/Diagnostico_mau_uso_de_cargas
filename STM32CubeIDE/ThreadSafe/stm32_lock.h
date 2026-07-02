@@ -52,6 +52,7 @@
 2026-06-30-Grupo 2- Instalação das Ferramentas e Execução do Sistema.zip
 2026-06-30-Grupo 2-Segunda Apresentação Individual-Arthur Henrique Caron.mp4
 2026-06-30-Grupo 2-Segunda Apresentação Individual-Arthur Henrique Caron.zip
+2026-07-01 19-34-08.mp4
 Arduino
 Área de trabalho
 AVRDUDESS
@@ -76,6 +77,7 @@ pt
 Público
 R
 restore
+Screenshot 2026-07-01 19-28-15.png
 snap
 SQL
 STM32Cube

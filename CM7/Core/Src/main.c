@@ -36,32 +36,13 @@ typedef struct dados{
 	uint16_t tensao,
 		     corrente;
 } adc_buffer_t;
-
-typedef struct{
-	float32_t v_rms,
-		      i_rms,
-		      s,
-		      p,
-		      q,
-			  dhtv,
-			  dhti,
-			  v_fundamental,
-			  v_harmonicas[50],
-			  v_medio,
-			  i_fundamental,
-			  i_medio,
-			  i_harmonicas[50];
-} metricas_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define HSEM_ID_1 (1U)
-#define PRINT_PROCESS_ID 2
 #define OFFSET 			    1.65
 #define KCONV				5035477226e-14 // 3.3 / (2¹⁶ - 1)
-#define KVOLT				993.5 //Empírico, necessita calibração
-#define KAMP				0.05 // 1 / 20
 /* DUAL_CORE_BOOT_SYNC_SEQUENCE: Define for dual core boot synchronization    */
 /*                             demonstration code based on hardware semaphore */
 /* This define is present in both CM7/CM4 projects                            */
@@ -94,25 +75,19 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for taskPDS */
-osThreadId_t taskPDSHandle;
-const osThreadAttr_t taskPDS_attributes = {
-  .name = "taskPDS",
+/* Definitions for taskCalibracao */
+osThreadId_t taskCalibracaoHandle;
+const osThreadAttr_t taskCalibracao_attributes = {
+  .name = "taskCalibracao",
   .stack_size = 2000 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
 __attribute__((section(".shared_data"))) static volatile adc_buffer_t adc_buffer[8192];
 __attribute__((section(".shared_data"))) static volatile uint8_t pronto = 0;
-static float32_t tensao[4096],
-				 corrente[4096],
-				 potencia[4096],
-				 saidaFFT[2][4096], //saida[0]: tensao. saida[1]: corrente
-				 bufferHarmonicas[2][2048]; //bufferHarmonicas[0]: tensao. bufferHarmonicas[1]: corrente
 volatile TaskHandle_t taskAtiva = NULL;
-static arm_rfft_fast_instance_f32 instanciaFFT;
-static metricas_t metricasEnergia;
-static char payloadUSB[160] __attribute__((aligned(32)));
+static char payloadUSB[32] __attribute__((aligned(32)));
+static float32_t tensao[4096];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -122,11 +97,10 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 void StartDefaultTask(void *argument);
-void tkPDS(void *argument);
+void tkCalibracao(void *argument);
 
 /* USER CODE BEGIN PFP */
 void HAL_HSEM_FreeCallback(uint32_t SemMask);
-void pdsSR();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -215,8 +189,6 @@ Error_Handler();
   /* USER CODE BEGIN 2 */
   HAL_PWREx_EnableUSBVoltageDetector();
   MX_USB_DEVICE_Init();
-
-  arm_rfft_fast_init_f32(&instanciaFFT, 4096);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -242,8 +214,8 @@ Error_Handler();
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of taskPDS */
-  taskPDSHandle = osThreadNew(tkPDS, NULL, &taskPDS_attributes);
+  /* creation of taskCalibracao */
+  taskCalibracaoHandle = osThreadNew(tkCalibracao, NULL, &taskCalibracao_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -484,10 +456,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOI_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : LED_G_Pin */
   GPIO_InitStruct.Pin = LED_G_Pin;
@@ -519,55 +491,6 @@ void HAL_HSEM_FreeCallback(uint32_t SemMask){
 		portYIELD_FROM_ISR(xAcordarTaskEnvio);
 	}
 }
-
-void pdsSR(){
-	uint32_t indiceFundamental = 0;
-
-	for(int i = 0; i < 4096; i++){
-		tensao[i] = KVOLT * (adc_buffer[(pronto - 1) * 4096 + i].tensao * KCONV - OFFSET);
-		corrente[i] = KAMP * (adc_buffer[(pronto - 1) * 4096 + i].corrente * KCONV - OFFSET);
-	}
-
-	arm_rms_f32(tensao, 4096, &(metricasEnergia.v_rms));
-	arm_rms_f32(corrente, 4096, &(metricasEnergia.i_rms));
-	arm_mult_f32(tensao, corrente, potencia, 4096);
-	arm_mean_f32(potencia, 4096, &(metricasEnergia.p));
-
-	metricasEnergia.s = metricasEnergia.v_rms * metricasEnergia.i_rms;
-	arm_sqrt_f32(metricasEnergia.s * metricasEnergia.s - metricasEnergia.p * metricasEnergia.p,
-				  &(metricasEnergia.q));
-
-	arm_rfft_fast_f32(&instanciaFFT, tensao, saidaFFT[0], 0);
-	arm_cmplx_mag_f32(saidaFFT[0], bufferHarmonicas[0],2048);
-	metricasEnergia.v_medio = bufferHarmonicas[0][0] / 4096.0;
-
-	arm_max_f32(&bufferHarmonicas[0][10 - 1], 10, &(metricasEnergia.v_fundamental), &indiceFundamental);
-	indiceFundamental += 10;
-
-	for(int i = 2; i < 52; i++)
-		metricasEnergia.v_harmonicas[i - 2] = bufferHarmonicas[0][i * indiceFundamental - 1] * 2.0/4096.0;
-
-	arm_power_f32(metricasEnergia.v_harmonicas, 50, &(metricasEnergia.dhtv));
-	arm_sqrt_f32(metricasEnergia.dhtv, &(metricasEnergia.dhtv));
-	metricasEnergia.dhtv /= metricasEnergia.v_fundamental;
-	indiceFundamental = 0;
-
-	arm_rfft_fast_f32(&instanciaFFT, corrente, saidaFFT[1], 0);
-	arm_cmplx_mag_f32(saidaFFT[1], bufferHarmonicas[1], 2048);
-	metricasEnergia.i_medio = bufferHarmonicas[1][0] / 4096;
-
-	arm_max_f32(&bufferHarmonicas[1][10 - 1], 10, &(metricasEnergia.i_fundamental), &indiceFundamental);
-	indiceFundamental += 10;
-
-	for(int i = 2; i < 52; i++)
-		metricasEnergia.i_harmonicas[i - 2] = bufferHarmonicas[1][i * indiceFundamental - 1] * 2.0/4096.0;
-
-	arm_power_f32(metricasEnergia.i_harmonicas, 50, &(metricasEnergia.dhti));
-	arm_sqrt_f32(metricasEnergia.dhti, &(metricasEnergia.dhti));
-	metricasEnergia.dhti /=metricasEnergia.i_fundamental;
-}
-
-
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -579,8 +502,6 @@ void pdsSR(){
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
-  /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
   for(;;)
@@ -590,50 +511,49 @@ void StartDefaultTask(void *argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_tkPDS */
+/* USER CODE BEGIN Header_tkCalibracao */
 /**
-* @brief Function implementing the captacaoDados thread.
+* @brief Function implementing the taskCalibracao thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_tkPDS */
-void tkPDS(void *argument)
+/* USER CODE END Header_tkCalibracao */
+void tkCalibracao(void *argument)
 {
-  /* USER CODE BEGIN tkPDS */
-	uint8_t tamanhoPayload = 0;
-	uint32_t timeout = 0;
+  /* USER CODE BEGIN tkCalibracao */
+	const float32_t v_rms_empirica = 127.0; //Tensão RMS medida da tomada para calibração do ZMPT101B
+	uint32_t tamanhoPayload = 0,
+			 timeout = 0;
+	float32_t rmsAD = 0,
+			  kVolt = 0;
 
 	taskAtiva = xTaskGetCurrentTaskHandle();
 	HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
   /* Infinite loop */
-  while(1)
-  {
-	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-	HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, GPIO_PIN_RESET);
-	if(pronto > 0){
-	     pdsSR();
-	     timeout = HAL_GetTick();
+	while(1){
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-	     tamanhoPayload = snprintf(payloadUSB, sizeof(payloadUSB),
-	    		 "%.2f;%.3f;%.2f;%.2f;%.3f;%.2f;%.2f;%.2f;%.2f;%.2f;%.2f;%.2f;%.3f;%.3f;%.3f;%.3f;%.3f\n",
-				 metricasEnergia.v_rms, metricasEnergia.i_rms, metricasEnergia.s, metricasEnergia.p,
-				 metricasEnergia.q, metricasEnergia.dhtv * 100, metricasEnergia.v_medio, metricasEnergia.v_fundamental,
-				 metricasEnergia.v_harmonicas[0], metricasEnergia.v_harmonicas[1], metricasEnergia.v_harmonicas[2],
-				 metricasEnergia.dhti * 100, metricasEnergia.i_medio, metricasEnergia.i_fundamental,
-				 metricasEnergia.i_harmonicas[0], metricasEnergia.i_harmonicas[1], metricasEnergia.i_harmonicas[2]);
-				//   V;   I;   S;   P;   Q;DHTV;  Vm;  Vo;  V1;   V2; V3;DHTI;  Im;  Io;  I1;  I2;  I3;
-	     SCB_CleanDCache_by_Addr(payloadUSB, 160);
+		if(pronto > 0){
+			for(int i = 0; i < 4096; i++)
+				tensao[i] = KCONV * adc_buffer[(pronto - 1) * 4096 + i].tensao - OFFSET;
 
-	     while(CDC_Transmit_FS((uint8_t*) payloadUSB, tamanhoPayload) == USBD_BUSY){
-	    	 if(HAL_GetTick() - timeout > 500) break;
-	    	 osThreadYield();
-	     }
+			arm_rms_f32(tensao, 4096, &rmsAD);
+			kVolt = v_rms_empirica / rmsAD;
+			tamanhoPayload = snprintf(payloadUSB, sizeof(payloadUSB), "%.2f\n", kVolt);
+
+			SCB_CleanDCache_by_Addr((uint32_t*) payloadUSB, tamanhoPayload);
+
+			timeout = HAL_GetTick();
+			while(CDC_Transmit_FS((uint8_t*) payloadUSB, tamanhoPayload) == USBD_BUSY){
+				if(HAL_GetTick() - timeout > 50) break;
+				osThreadYield();
+			}
+			tamanhoPayload = 0;
+		}
+		HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
+		osDelay(1);
 	}
-
-    HAL_HSEM_ActivateNotification(__HAL_HSEM_SEMID_TO_MASK(HSEM_ID_1));
-    osDelay(1);
-  }
-  /* USER CODE END tkPDS */
+  /* USER CODE END tkCalibracao */
 }
 
  /* MPU Configuration */
